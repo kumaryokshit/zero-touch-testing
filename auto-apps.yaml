@@ -1,0 +1,36 @@
+trigger:
+  paths:
+    include:
+      - apps.xlsx          # re-run when spreadsheet changes
+      - scripts/**
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  - checkout: self
+    persistCredentials: true     # allows git push
+
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: '3.x'
+
+  - script: |
+      pip install pandas openpyxl
+      python scripts/excel_to_apps.py apps.xlsx
+    displayName: "Generate app folders from Excel"
+
+  # optional – add/update & push new folders back to repo
+  - script: |
+      git config user.email "pipeline-bot@example.com"
+      git config user.name "pipeline-bot"
+      git add apps/* || true
+      if ! git diff --cached --quiet; then
+        git commit -m "auto: generate app folders from apps.xlsx [skip ci]"
+        git push
+      fi
+    displayName: "Commit & push generated folders"
+
+  # Optional: apply the ApplicationSet YAML after first run
+  # - bash: kubectl apply -f argocd/applicationset.yaml
+

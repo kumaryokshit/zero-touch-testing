@@ -1,0 +1,39 @@
+trigger:
+  paths:
+    include:
+      - apps.xlsx
+      - scripts/**
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  - checkout: self
+    persistCredentials: true
+
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: '3.x'
+
+  - script: |
+      pip install pandas openpyxl
+      python scripts/excel_to_apps.py apps.xlsx
+    displayName: "Generate app folders from Excel"
+
+  - script: |
+      git config user.email "pipeline-bot@example.com"
+      git config user.name "pipeline-bot"
+      git add apps/* || true
+      if ! git diff --cached --quiet; then
+        git commit -m "auto: generate app folders from apps.xlsx [skip ci]"
+        git push
+      fi
+    displayName: "Commit & push generated folders"
+
+  - script: |
+      curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+      chmod +x argocd && sudo mv argocd /usr/local/bin
+      argocd login $(ARGOCD_SERVER) --username admin --password $(ARGOCD_AUTH_TOKEN) --insecure
+      argocd appset refresh dynamic-apps
+    displayName: 'Refresh ApplicationSet'
+
